@@ -6,22 +6,51 @@ import (
 	"net/rpc"
 	"os"
 	"strings"
+	"time"
 )
 
 func main() {
-	client, _ := rpc.Dial("tcp", "localhost:1234")
+	client, err := rpc.Dial("tcp", "localhost:1234")
+	if err != nil {
+		fmt.Println("Error connecting to server:", err)
+		return
+	}
+	defer client.Close()
+
 	reader := bufio.NewReader(os.Stdin)
 
 	fmt.Print("Enter your name: ")
 	name, _ := reader.ReadString('\n')
 	name = strings.TrimSpace(name)
 
-	var reply string
-	client.Call("ChatServer.Register", name, &reply)
-	fmt.Println(reply)
+	var chatHistory []string
+	client.Call("ChatServer.Register", name, &chatHistory)
 
-	fmt.Println("\nStart chatting! Type 'exit' to quit.")
+	fmt.Println("Registered successfully!")
+	fmt.Println("Start chatting! Type 'exit' to quit.")
 
+	lastIndex := len(chatHistory)
+
+	// Goroutine to fetch new messages periodically
+	go func() {
+		for {
+			time.Sleep(500 * time.Millisecond)
+			var messages []string
+			client.Call("ChatServer.GetMessages", 0, &messages)
+			if len(messages) > lastIndex {
+				for _, msg := range messages[lastIndex:] {
+					// Skip own messages
+					if !strings.HasPrefix(msg, name+":") {
+						fmt.Println("\n" + msg)
+					}
+				}
+				lastIndex = len(messages)
+				fmt.Print("> ")
+			}
+		}
+	}()
+
+	// Main loop to send messages
 	for {
 		fmt.Print("> ")
 		text, _ := reader.ReadString('\n')
@@ -33,13 +62,7 @@ func main() {
 		}
 
 		fullMsg := fmt.Sprintf("%s: %s", name, text)
-		var history []string
-		client.Call("ChatServer.SendMessage", fullMsg, &history)
-
-		fmt.Println("\n--- Chat Broadcast ---")
-		for _, msg := range history {
-			fmt.Println(msg)
-		}
-		fmt.Println("----------------------")
+		client.Call("ChatServer.SendMessage", fullMsg, &chatHistory)
+		lastIndex = len(chatHistory)
 	}
 }
