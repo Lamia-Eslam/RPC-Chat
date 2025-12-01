@@ -23,13 +23,13 @@ func main() {
 	name, _ := reader.ReadString('\n')
 	name = strings.TrimSpace(name)
 
-	var chatHistory []string
-	client.Call("ChatServer.Register", name, &chatHistory)
-
-	fmt.Println("Registered successfully!")
+	var myID int
+	client.Call("ChatServer.Register", name, &myID)
+	fmt.Printf("Registered successfully! Your ID is %d\n", myID)
 	fmt.Println("Start chatting! Type 'exit' to quit.")
 
-	lastIndex := len(chatHistory)
+	var chatHistory []string
+	lastIndex := 0
 
 	// Goroutine to fetch new messages periodically
 	go func() {
@@ -37,10 +37,11 @@ func main() {
 			time.Sleep(500 * time.Millisecond)
 			var messages []string
 			client.Call("ChatServer.GetMessages", 0, &messages)
+
 			if len(messages) > lastIndex {
 				for _, msg := range messages[lastIndex:] {
 					// Skip own messages
-					if !strings.HasPrefix(msg, name+":") {
+					if !strings.HasPrefix(msg, fmt.Sprintf("User %d (%s):", myID, name)) {
 						fmt.Println("\n" + msg)
 					}
 				}
@@ -61,7 +62,7 @@ func main() {
 			break
 		}
 
-		fullMsg := fmt.Sprintf("%s: %s", name, text)
+		fullMsg := fmt.Sprintf("User %d (%s): %s", myID, name, text)
 		client.Call("ChatServer.SendMessage", fullMsg, &chatHistory)
 		lastIndex = len(chatHistory)
 	}
