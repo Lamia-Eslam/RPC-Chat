@@ -39,7 +39,7 @@ func (c *ChatServer) Register(name string, reply *string) error {
 	c.clients = append(c.clients, name)
 	c.mu.Unlock()
 
-	joinMsg := fmt.Sprintf("🔔 %s joined the chat", name)
+	joinMsg := fmt.Sprintf("%s joined the chat", name)
 	c.broadcast <- joinMsg
 	*reply = "Registered successfully!"
 	return nil
