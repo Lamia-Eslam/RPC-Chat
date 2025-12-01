@@ -11,10 +11,10 @@ go run server.go
 Open one or more terminals for the clients and run:
 go run client.go
 
------------------------------------------------------
 # Key Features:
 - Multiple clients support: several clients can connect and chat at the same time.
 - Real-time broadcasting: messages from one client appear to all other clients immediately.
 - Join notifications: all clients are notified when a new user joins.
 - No self-echo: a client does not see its own messages.
 - Concurrency handling: server uses mutex and clients use goroutines to safely manage shared resources.
+
