@@ -4,60 +4,54 @@ import (
 	"fmt"
 	"net"
 	"net/rpc"
-	"strings"
 	"sync"
 )
 
 type ChatServer struct {
-	mu        sync.Mutex
-	clients   []string
-	messages  []string
-	broadcast chan string
+	mu       sync.Mutex
+	messages []string
+	users    map[string]bool
 }
 
 func NewChatServer() *ChatServer {
-	server := &ChatServer{
-		clients:   []string{},
-		messages:  []string{},
-		broadcast: make(chan string, 10), // channel added
-	}
-	go server.handleBroadcast()
-	return server
-}
-
-// Handle sending messages via channel
-func (c *ChatServer) handleBroadcast() {
-	for msg := range c.broadcast {
-		c.mu.Lock()
-		c.messages = append(c.messages, msg)
-		c.mu.Unlock()
+	return &ChatServer{
+		messages: []string{},
+		users:    make(map[string]bool),
 	}
 }
 
-func (c *ChatServer) Register(name string, reply *string) error {
-	c.mu.Lock()
-	c.clients = append(c.clients, name)
-	c.mu.Unlock()
-
-	joinMsg := fmt.Sprintf("%s joined the chat", name)
-	c.broadcast <- joinMsg
-	*reply = "Registered successfully!"
-	return nil
-}
-
-func (c *ChatServer) SendMessage(msg string, reply *[]string) error {
-	c.broadcast <- msg
-
+// Register adds a user and broadcasts join message
+func (c *ChatServer) Register(name string, reply *[]string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	var broadcast []string
-	for _, m := range c.messages {
-		if !strings.HasPrefix(m, msg[:strings.Index(msg, ":")]) {
-			broadcast = append(broadcast, m)
-		}
+	// Add user if not already registered
+	if !c.users[name] {
+		c.users[name] = true
+		joinMsg := fmt.Sprintf("User %s joined the chat", name)
+		c.messages = append(c.messages, joinMsg)
 	}
-	*reply = broadcast
+
+	*reply = c.messages
+	return nil
+}
+
+// SendMessage appends a new message to the chat
+func (c *ChatServer) SendMessage(msg string, reply *[]string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.messages = append(c.messages, msg)
+	*reply = c.messages
+	return nil
+}
+
+// GetMessages returns all messages
+func (c *ChatServer) GetMessages(_ int, reply *[]string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	*reply = c.messages
 	return nil
 }
 
@@ -65,12 +59,21 @@ func main() {
 	server := NewChatServer()
 	rpc.Register(server)
 
-	listener, _ := net.Listen("tcp", ":1234")
+	listener, err := net.Listen("tcp", ":1234")
+	if err != nil {
+		fmt.Println("Error starting server:", err)
+		return
+	}
 	defer listener.Close()
 
 	fmt.Println("Chat server running on port 1234...")
+
 	for {
-		conn, _ := listener.Accept()
+		conn, err := listener.Accept()
+		if err != nil {
+			fmt.Println("Error accepting connection:", err)
+			continue
+		}
 		go rpc.ServeConn(conn)
 	}
 }
