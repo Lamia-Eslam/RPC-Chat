@@ -10,29 +10,31 @@ import (
 type ChatServer struct {
 	mu       sync.Mutex
 	messages []string
-	users    map[string]bool
+	users    map[int]string // ID -> Name
+	nextID   int
 }
 
 func NewChatServer() *ChatServer {
 	return &ChatServer{
 		messages: []string{},
-		users:    make(map[string]bool),
+		users:    make(map[int]string),
+		nextID:   1,
 	}
 }
 
-// Register adds a user and broadcasts join message
-func (c *ChatServer) Register(name string, reply *[]string) error {
+// Register a client and broadcast join message
+func (c *ChatServer) Register(name string, reply *int) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	// Add user if not already registered
-	if !c.users[name] {
-		c.users[name] = true
-		joinMsg := fmt.Sprintf("User %s joined the chat", name)
-		c.messages = append(c.messages, joinMsg)
-	}
+	id := c.nextID
+	c.nextID++
+	c.users[id] = name
 
-	*reply = c.messages
+	joinMsg := fmt.Sprintf("User %d (%s) joined", id, name)
+	c.messages = append(c.messages, joinMsg)
+
+	*reply = id
 	return nil
 }
 
